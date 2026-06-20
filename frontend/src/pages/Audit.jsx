@@ -42,8 +42,10 @@ export default function Audit() {
     const startTime = Date.now();
 
     try {
-      // If VITE_API_BASE_URL is set, use it (for local dev). Otherwise, use relative path for Nginx proxy.
-      const apiUrl = import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/audit` : '/audit';
+      // Use relative /audit path in production (handled by Vercel proxy rewrites in vercel.json).
+      // VITE_API_BASE_URL can be set for local development to point to a running backend.
+      const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+      const apiUrl = `${apiBase}/audit`;
       
       const response = await fetch(apiUrl, {
         method: 'POST',
