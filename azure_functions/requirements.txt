@@ -11,3 +11,4 @@ azure-monitor-opentelemetry
 yt-dlp
 Pillow
 SpeechRecognition
+slowapi

@@ -102,9 +102,17 @@ def audit_content_node(state: VideoAuditState) -> Dict[str, Any]:
     )
     
     # RAG Retrieval
+    tenant_id = state.get("tenant_id")
     ocr_text = state.get("ocr_text", [])
     query_text = f"{transcript} {' '.join(ocr_text)}"
-    docs = vector_store.similarity_search(query_text, k=3)
+    
+    # Enforce strict multi-tenancy: only retrieve rules for this tenant
+    # Note: Requires 'tenant_id' field in Azure Search index schema to be 'filterable'
+    search_kwargs = {}
+    if tenant_id:
+        search_kwargs["filters"] = f"tenant_id eq '{tenant_id}'"
+        
+    docs = vector_store.similarity_search(query_text, k=3, **search_kwargs)
     
     retrieved_rules = "\n\n".join([doc.page_content for doc in docs])
     

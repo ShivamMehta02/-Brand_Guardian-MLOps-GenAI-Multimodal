@@ -15,6 +15,7 @@ class VideoAuditState(TypedDict):
     Defines the data schema for the LangGraph execution context.
     """
     # --- Input Parameters ---
+    tenant_id: str
     video_url: str
     video_id: str
 

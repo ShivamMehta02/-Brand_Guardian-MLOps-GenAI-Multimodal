@@ -49,6 +49,7 @@ class TestBrandGuardianWorkflow(unittest.TestCase):
         
         # 2. Run the LangGraph workflow
         initial_inputs = {
+            "tenant_id": "test_tenant",
             "video_url": "https://www.youtube.com/watch?v=dT7S75eYhcQ",
             "video_id": "vid_test",
             "compliance_results": [],

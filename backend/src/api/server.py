@@ -1,13 +1,14 @@
 import uuid        # Generate unique session IDs
 import logging     # Application logging
-from fastapi import FastAPI, HTTPException  
-# ↑ FastAPI = modern web framework (like Flask but faster)
-# ↑ HTTPException = handles errors with proper HTTP status codes
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.security import APIKeyHeader
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, HttpUrl
+from typing import List, Optional
 
-from pydantic import BaseModel  
-# ↑ Pydantic = data validation library (ensures API requests have correct format)
-
-from typing import List, Optional  
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 # ↑ Type hints for better code clarity and auto-completion
 
 
@@ -45,11 +46,36 @@ logger = logging.getLogger("api-server")
 
 # ========== STEP 5: CREATE FASTAPI APPLICATION ==========
 app = FastAPI(
-    # Metadata for auto-generated API documentation (Swagger UI)
     title="Brand Guardian AI API",
     description="API for auditing video content against brand compliance rules.",
     version="1.0.0"
 )
+
+# --- RATE LIMITER CONFIGURATION ---
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- AUTHENTICATION CONFIGURATION ---
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
+
+# Mock database mapping API keys to Tenant IDs
+# In production, this would be validated against a database or Key Vault
+API_KEYS = {
+    "dev_key_tenant_a": "tenant_a_id",
+    "dev_key_tenant_b": "tenant_b_id"
+}
+
+def get_tenant_id(api_key: str = Depends(api_key_header)) -> str:
+    """Validates the API key and returns the associated tenant ID."""
+    tenant_id = API_KEYS.get(api_key)
+    if not tenant_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API Key"
+        )
+    return tenant_id
 # FastAPI automatically creates:
 # - Interactive docs at http://localhost:8000/docs
 # - OpenAPI schema at http://localhost:8000/openapi.json
@@ -76,7 +102,7 @@ class AuditRequest(BaseModel):
         "video_url": 12345  ← Not a string!
     }
     """
-    video_url: str  # Required string field
+    video_url: HttpUrl  # Enforces valid HTTP/HTTPS URL structure to prevent SSRF
 
 
 # --- NESTED MODEL ---
@@ -125,11 +151,8 @@ class AuditResponse(BaseModel):
 
 # ========== STEP 7: DEFINE MAIN ENDPOINT ==========
 @app.post("/audit", response_model=AuditResponse)
-# ↑ @app.post = Decorator that registers this function as a POST endpoint
-# ↑ "/audit" = URL path (http://localhost:8000/audit)
-# ↑ response_model = Tells FastAPI to validate response matches AuditResponse
-
-async def audit_video(request: AuditRequest):
+@limiter.limit("5/minute")
+async def audit_video(request_ctx: Request, request: AuditRequest, tenant_id: str = Depends(get_tenant_id)):
     """
     Main API endpoint that triggers the compliance audit workflow.
     
@@ -164,7 +187,8 @@ async def audit_video(request: AuditRequest):
 
     # ========== PREPARE GRAPH INPUT ==========
     initial_inputs = {
-        "video_url": request.video_url,  # From the API request
+        "tenant_id": tenant_id,          # Injected from Auth middleware
+        "video_url": str(request.video_url),  # From the API request (cast HttpUrl to str)
         "video_id": video_id_short,      # Generated ID
         "compliance_results": [],        # Will be populated by Auditor
         "errors": []                     # Tracks any processing errors
