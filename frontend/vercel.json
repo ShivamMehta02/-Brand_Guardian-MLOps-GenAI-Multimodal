@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/audit",
+      "destination": "https://brand-guardian-mlops-genai-multimodal.onrender.com/audit"
+    },
+    {
+      "source": "/health",
+      "destination": "https://brand-guardian-mlops-genai-multimodal.onrender.com/health"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
