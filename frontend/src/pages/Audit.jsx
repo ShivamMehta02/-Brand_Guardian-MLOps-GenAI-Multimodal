@@ -42,9 +42,9 @@ export default function Audit() {
     const startTime = Date.now();
 
     try {
-      // Use relative /audit path in production (handled by Vercel proxy rewrites in vercel.json).
-      // VITE_API_BASE_URL can be set for local development to point to a running backend.
-      const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+      // In production: Vercel's proxy rewrites /audit → Render backend (see vercel.json)
+      // In local dev: update frontend/.env with VITE_API_BASE_URL=http://localhost:8000
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/^http:\/\/localhost.*/, '');
       const apiUrl = `${apiBase}/audit`;
       
       const response = await fetch(apiUrl, {
