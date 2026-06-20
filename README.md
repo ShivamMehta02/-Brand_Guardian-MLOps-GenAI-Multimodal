@@ -289,3 +289,25 @@ This project is for educational and internal use.
 - [Azure Video Indexer](https://azure.microsoft.com/en-us/products/ai-video-indexer) — Video analysis
 - [FastAPI](https://fastapi.tiangolo.com/) — Modern Python web framework
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) — YouTube video downloader
+
+---
+
+## 🏗️ Production Rollout (`infra/production-rollout` branch)
+
+This branch introduces pre-deployment checklists, CI/CD, and Containerization to ensure the codebase is strictly production-ready.
+
+### 1. Dockerization
+The project includes a highly optimized, multi-stage `Dockerfile` in the root directory. 
+- **Stage 1 (Builder):** Uses `uv` to resolve and install dependencies into a virtual environment.
+- **Stage 2 (Runner):** Uses a minimal `python:3.11-slim` base image, copying only the compiled environment and application code. This reduces attack surface and final image size.
+
+### 2. CI/CD Pipeline
+A GitHub Actions workflow (`.github/workflows/ci.yml`) is configured to:
+- Enforce code quality via `flake8` linting.
+- Prevent regressions by running the unit test suite (`test_workflow.py`).
+- Perform an automated "Smoke Test" by starting the FastAPI server in the background and hitting the `/health` endpoint before allowing a merge.
+
+### 3. "Guilty Until Proven Innocent" Audits
+- **Dependency Audit:** Checked `requirements.txt` to ensure no hallucinated or vulnerable packages exist.
+- **Secrets Management:** Ensured all credentials and API keys are strictly loaded via environment variables (`os.getenv()`) and nothing is hardcoded.
+- **Code Cleanliness:** Removed zombie code and added business logic comments detailing *why* architectural decisions (like multi-tenant filtering in Azure Search) were made.

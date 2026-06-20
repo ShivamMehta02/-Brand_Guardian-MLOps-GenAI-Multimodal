@@ -1,0 +1,61 @@
+name: Pre-Deployment CI Pipeline
+
+on:
+  push:
+    branches: [ "dev", "main", "infra/production-rollout" ]
+  pull_request:
+    branches: [ "dev", "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        uv venv .venv
+        source .venv/bin/activate
+        uv pip install -r azure_functions/requirements.txt
+        # Install flake8 for linting
+        uv pip install flake8
+
+    - name: Lint with flake8
+      run: |
+        source .venv/bin/activate
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run Unit Tests
+      run: |
+        source .venv/bin/activate
+        # We assume the API keys and endpoints are mocked in tests, 
+        # otherwise we'd need to mock environment variables here.
+        python -m unittest backend/tests/test_workflow.py
+
+    - name: Smoke Test FastAPI
+      run: |
+        source .venv/bin/activate
+        # Start server in the background
+        uvicorn backend.src.api.server:app --host 0.0.0.0 --port 8000 &
+        SERVER_PID=$!
+        
+        # Wait a few seconds for the server to start
+        sleep 5
+        
+        # Hit the health endpoint to verify it doesn't crash on startup
+        curl -f http://localhost:8000/health || exit 1
+        
+        # Kill the background server process
+        kill $SERVER_PID
