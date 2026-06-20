@@ -1,6 +1,7 @@
 import uuid        # Generate unique session IDs
 import logging     # Application logging
 from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, HttpUrl
@@ -49,6 +50,14 @@ app = FastAPI(
     title="Brand Guardian AI API",
     description="API for auditing video content against brand compliance rules.",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # In production, restrict this to the frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- RATE LIMITER CONFIGURATION ---
@@ -197,13 +206,7 @@ async def audit_video(request_ctx: Request, request: AuditRequest, tenant_id: st
     try:
         # ========== INVOKE LANGGRAPH WORKFLOW ==========
         # This is the SAME logic from main.py - just wrapped in an API
-        final_state = compliance_graph.invoke(initial_inputs)
-        # ↑ Blocking call - waits for entire workflow to complete
-        # ↑ Flow: START → Indexer → Auditor → END
-        # ↑ Returns: Final state dictionary with all results
-        
-        # NOTE: In production, you'd use:
-        # await compliance_graph.ainvoke(initial_inputs)
+        final_state = await compliance_graph.ainvoke(initial_inputs)
         # ↑ Async version - doesn't block the server while processing
         
         # ========== MAP GRAPH OUTPUT TO API RESPONSE ==========
