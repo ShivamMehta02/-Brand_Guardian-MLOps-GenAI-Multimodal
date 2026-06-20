@@ -1,0 +1,13 @@
+azure-functions
+fastapi
+uvicorn
+python-dotenv
+langgraph
+langchain-openai
+langchain-community
+azure-search-documents
+azure-identity
+azure-monitor-opentelemetry
+yt-dlp
+Pillow
+SpeechRecognition
