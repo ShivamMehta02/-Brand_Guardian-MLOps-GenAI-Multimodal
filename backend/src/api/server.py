@@ -163,7 +163,7 @@ class AuditResponse(BaseModel):
 # ========== STEP 7: DEFINE MAIN ENDPOINT ==========
 @app.post("/audit", response_model=AuditResponse)
 @limiter.limit("5/minute")
-async def audit_video(request_ctx: Request, request: AuditRequest, tenant_id: str = Depends(get_tenant_id)):
+async def audit_video(request: Request, audit_req: AuditRequest, tenant_id: str = Depends(get_tenant_id)):
     """
     Main API endpoint that triggers the compliance audit workflow.
     
@@ -193,13 +193,13 @@ async def audit_video(request_ctx: Request, request: AuditRequest, tenant_id: st
     # Easier to reference in logs/UI than full UUID
     
     # ========== LOG INCOMING REQUEST ==========
-    logger.info(f"Received Audit Request: {request.video_url} (Session: {session_id})")
+    logger.info(f"Received Audit Request: {audit_req.video_url} (Session: {session_id})")
     # Example output: "Received Audit Request: https://youtu.be/abc (Session: ce6c43bb...)"
 
     # ========== PREPARE GRAPH INPUT ==========
     initial_inputs = {
         "tenant_id": tenant_id,          # Injected from Auth middleware
-        "video_url": str(request.video_url),  # From the API request (cast HttpUrl to str)
+        "video_url": str(audit_req.video_url),  # From the API request (cast HttpUrl to str)
         "video_id": video_id_short,      # Generated ID
         "compliance_results": [],        # Will be populated by Auditor
         "errors": []                     # Tracks any processing errors
