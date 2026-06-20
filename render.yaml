@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: brand-guardian-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      # In Render's dashboard, you would override DEMO_MODE to "false" 
+      # and provide your real keys if you want the live version to actually work.
+      # But leaving it "true" guarantees $0 cost for portfolio visitors.

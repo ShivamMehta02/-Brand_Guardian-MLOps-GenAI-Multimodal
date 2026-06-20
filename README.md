@@ -311,3 +311,15 @@ A GitHub Actions workflow (`.github/workflows/ci.yml`) is configured to:
 - **Dependency Audit:** Checked `requirements.txt` to ensure no hallucinated or vulnerable packages exist.
 - **Secrets Management:** Ensured all credentials and API keys are strictly loaded via environment variables (`os.getenv()`) and nothing is hardcoded.
 - **Code Cleanliness:** Removed zombie code and added business logic comments detailing *why* architectural decisions (like multi-tenant filtering in Azure Search) were made.
+
+---
+
+## 🌐 Live Portfolio Deployment (`render.yaml` & `vercel.json`)
+
+The application is configured for **Zero-Cost Live Deployment** to showcase to recruiters.
+
+1. **Frontend (Vercel):** The Vite React app can be imported directly into Vercel. `vercel.json` ensures React Router works correctly.
+2. **Backend (Render.com):** The FastAPI Python backend deploys to Render's free tier via `render.yaml`.
+3. **Safe-Guard (Demo Mode):** The backend is deployed with `DEMO_MODE=true`. This completely bypasses the expensive Azure/OpenAI LangGraph workflow, returning a realistic, instant mock report instead. This guarantees your portfolio costs $0 in API fees while recruiters test it.
+
+> **Note on Render Free Tier:** Render spins down free instances after 15 minutes of inactivity. The first time a recruiter hits "Run Audit", it may take ~30 seconds for the backend to wake up from a cold start. Subsequent requests are instant.

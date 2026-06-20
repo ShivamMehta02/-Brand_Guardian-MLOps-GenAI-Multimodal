@@ -1,5 +1,7 @@
 import uuid        # Generate unique session IDs
 import logging     # Application logging
+import os          # For environment variable checks
+import asyncio     # For demo mode fake latency
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
@@ -204,6 +206,33 @@ async def audit_video(request_ctx: Request, request: AuditRequest, tenant_id: st
     }
 
     try:
+        # ========== DEMO MODE SAFE-GUARD ==========
+        # In a portfolio deployment, this ensures zero API costs and instant results.
+        if os.getenv("DEMO_MODE", "false").lower() == "true":
+            logger.info(f"DEMO MODE ENABLED: Bypassing LangGraph for Session {session_id}")
+            
+            # Add a slight delay to make the frontend stepper animation believable
+            await asyncio.sleep(2)
+            
+            return AuditResponse(
+                session_id=session_id,
+                video_id=video_id_short,
+                status="FAIL",
+                final_report="This video contains two compliance issues requiring immediate attention. A performance guarantee claim at 0:32 violates FTC Rule 255.1(a) as it lacks required substantiation disclosure. Additionally, the sponsored content label does not appear within the first three seconds as required by YouTube's ad policies.",
+                compliance_results=[
+                    {
+                        "category": "FTC Disclosure",
+                        "severity": "CRITICAL",
+                        "description": "Performance guarantee claim at 0:32 violates FTC Rule 255.1(a) (lacks required substantiation disclosure)."
+                    },
+                    {
+                        "category": "Platform Ad Policies",
+                        "severity": "WARNING",
+                        "description": "Sponsored content label does not appear within the first three seconds as required by YouTube."
+                    }
+                ]
+            )
+
         # ========== INVOKE LANGGRAPH WORKFLOW ==========
         # This is the SAME logic from main.py - just wrapped in an API
         final_state = await compliance_graph.ainvoke(initial_inputs)
