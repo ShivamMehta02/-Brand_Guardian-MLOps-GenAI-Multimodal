@@ -25,7 +25,7 @@ jobs:
         pip install uv
         uv venv .venv
         source .venv/bin/activate
-        uv pip install -r azure_functions/requirements.txt
+        uv pip install -e .
         # Install flake8 for linting
         uv pip install flake8
 
@@ -40,9 +40,8 @@ jobs:
     - name: Run Unit Tests
       run: |
         source .venv/bin/activate
-        # We assume the API keys and endpoints are mocked in tests, 
-        # otherwise we'd need to mock environment variables here.
-        python -m unittest backend/tests/test_workflow.py
+        # -m unittest discover finds all test_*.py files correctly from project root
+        python -m unittest discover -s backend/tests -p "test_*.py"
 
     - name: Smoke Test FastAPI
       run: |

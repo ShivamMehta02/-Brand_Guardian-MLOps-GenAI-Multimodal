@@ -1,3 +1,18 @@
+"""
+Knowledge Base Indexer
+======================
+Reads PDFs from backend/data/, chunks them, and stores vectors in a local
+ChromaDB database. This script runs ONCE (or whenever PDFs change).
+
+No external API keys required — uses local HuggingFace embeddings.
+
+Usage:
+    uv run python -m backend.scripts.index_documents
+
+Output:
+    ./chroma_db/   ← local vector database directory
+"""
+
 import os
 import glob
 import logging
@@ -5,139 +20,109 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-# Document Loaders and Splitters
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 
-# Azure Vector Store & Embeddings
-from langchain_openai import AzureOpenAIEmbeddings
-from langchain_community.vectorstores import AzureSearch
-
-# 1. Setup Logging & Configuration
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("indexer")
 
+
 def index_docs():
     """
-    Reads PDFs from backend/data, chunks them, and uploads vectors to Azure AI Search.
+    Reads PDFs, chunks them, and populates a local ChromaDB vector store.
+    Uses all-MiniLM-L6-v2 embeddings (runs locally, no API key needed).
     """
-    # 2. Define Paths
-    # We look for the 'data' folder relative to this script's location
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    data_folder = os.path.join(current_dir, "../../backend/data")
-    
-    # 3. Debug: Check Environment Variables
+    data_folder = os.path.join(current_dir, "../data")
+    chroma_db_path = os.getenv("CHROMA_DB_PATH", "./chroma_db")
+
     logger.info("=" * 60)
-    logger.info("Environment Configuration Check:")
-    logger.info(f"AZURE_OPENAI_ENDPOINT: {os.getenv('AZURE_OPENAI_ENDPOINT')}")
-    logger.info(f"AZURE_OPENAI_API_VERSION: {os.getenv('AZURE_OPENAI_API_VERSION')}")
-    logger.info(f"Embedding Deployment: {os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small')}")
-    logger.info(f"AZURE_SEARCH_ENDPOINT: {os.getenv('AZURE_SEARCH_ENDPOINT')}")
-    logger.info(f"AZURE_SEARCH_INDEX_NAME: {os.getenv('AZURE_SEARCH_INDEX_NAME')}")
+    logger.info("Brand Guardian — Knowledge Base Indexer")
+    logger.info(f"Data folder:   {os.path.abspath(data_folder)}")
+    logger.info(f"ChromaDB path: {os.path.abspath(chroma_db_path)}")
+    logger.info("Embedding model: all-MiniLM-L6-v2 (local, no API key)")
     logger.info("=" * 60)
-    
-    # 4. Validate Required Environment Variables
-    required_vars = [
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_OPENAI_API_KEY",
-        "AZURE_SEARCH_ENDPOINT",
-        "AZURE_SEARCH_API_KEY",
-        "AZURE_SEARCH_INDEX_NAME"
-    ]
-    
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    if missing_vars:
-        logger.error(f"Missing required environment variables: {missing_vars}")
-        logger.error("Please check your .env file and ensure all variables are set.")
-        return
-    
-    # 5. Initialize Embedding Model (The "Translator")
-    # This turns text into numbers (vectors).
-    # MUST match the model you deployed in Azure AI Foundry ("text-embedding-3-small")
+
+    # 1. Load local embedding model (downloads ~90MB on first run, then cached)
+    embedding_model = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     try:
-        logger.info("Initializing Azure OpenAI Embeddings...")
-        embeddings = AzureOpenAIEmbeddings(
-            azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+        logger.info(f"Loading embedding model: {embedding_model}...")
+        embeddings = HuggingFaceEmbeddings(
+            model_name=embedding_model,
+            cache_folder=os.getenv("SENTENCE_TRANSFORMERS_HOME", "./models")
         )
-        logger.info("✓ Embeddings model initialized successfully")
+        logger.info("✓ Embedding model ready (384-dim vectors)")
     except Exception as e:
-        logger.error(f"Failed to initialize embeddings: {e}")
-        logger.error("Please verify your Azure OpenAI deployment name and endpoint.")
+        logger.error(f"Failed to load embedding model: {e}")
         return
-    
-    # 6. Initialize Azure Search (The Database)
+
+    # 2. Initialize ChromaDB (creates the directory if it doesn't exist)
     try:
-        logger.info("Initializing Azure AI Search vector store...")
-        index_name = os.getenv("AZURE_SEARCH_INDEX_NAME")
-        vector_store = AzureSearch(
-            azure_search_endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
-            azure_search_key=os.getenv("AZURE_SEARCH_API_KEY"),
-            index_name=index_name,
-            embedding_function=embeddings.embed_query
+        logger.info(f"Initializing ChromaDB at: {chroma_db_path}")
+        vector_store = Chroma(
+            collection_name="brand-guardian",
+            embedding_function=embeddings,
+            persist_directory=chroma_db_path
         )
-        logger.info(f"✓ Vector store initialized for index: {index_name}")
+        logger.info("✓ ChromaDB initialized")
     except Exception as e:
-        logger.error(f"Failed to initialize Azure Search: {e}")
-        logger.error("Please verify your Azure Search endpoint, API key, and index name.")
+        logger.error(f"Failed to initialize ChromaDB: {e}")
         return
-    
-    # 7. Find PDF Files
+
+    # 3. Find PDFs
     pdf_files = glob.glob(os.path.join(data_folder, "*.pdf"))
     if not pdf_files:
-        logger.warning(f"No PDFs found in {data_folder}. Please add files.")
+        logger.warning(f"No PDFs found in {data_folder}. Add PDF files and re-run.")
         return
-    
-    logger.info(f"Found {len(pdf_files)} PDFs to process: {[os.path.basename(f) for f in pdf_files]}")
-    
+
+    logger.info(f"Found {len(pdf_files)} PDFs: {[os.path.basename(f) for f in pdf_files]}")
+
     all_splits = []
-    
-    # 8. Process Each PDF
+
+    # 4. Load and chunk each PDF
     for pdf_path in pdf_files:
         try:
             logger.info(f"Loading: {os.path.basename(pdf_path)}...")
             loader = PyPDFLoader(pdf_path)
             raw_docs = loader.load()
-            
-            # 9. Chunking Strategy
-            # We split text into 1000-character chunks with 200-character overlap
-            # to ensure context isn't lost between cuts.
-            text_splitter = RecursiveCharacterTextSplitter(
+
+            # 1000-char chunks with 200-char overlap
+            # Keeps context from bleeding across section boundaries
+            splitter = RecursiveCharacterTextSplitter(
                 chunk_size=1000,
                 chunk_overlap=200
             )
-            splits = text_splitter.split_documents(raw_docs)
-            
-            # Tag the source for citation later
+            splits = splitter.split_documents(raw_docs)
+
             for split in splits:
                 split.metadata["source"] = os.path.basename(pdf_path)
-            
+
             all_splits.extend(splits)
-            logger.info(f" -> Split into {len(splits)} chunks.")
-            
+            logger.info(f"  → {len(splits)} chunks")
+
         except Exception as e:
             logger.error(f"Failed to process {pdf_path}: {e}")
-    
-    # 10. Upload to Azure
+
+    # 5. Upload to ChromaDB
     if all_splits:
-        logger.info(f"Uploading {len(all_splits)} chunks to Azure AI Search Index '{index_name}'...")
+        logger.info(f"Indexing {len(all_splits)} chunks into ChromaDB...")
         try:
-            # Azure Search accepts batches automatically via this method
             vector_store.add_documents(documents=all_splits)
             logger.info("=" * 60)
-            logger.info("✅ Indexing Complete! The Knowledge Base is ready.")
-            logger.info(f"Total chunks indexed: {len(all_splits)}")
+            logger.info("✅ Indexing complete! Knowledge base is ready.")
+            logger.info(f"   Chunks indexed: {len(all_splits)}")
+            logger.info(f"   ChromaDB path:  {os.path.abspath(chroma_db_path)}")
             logger.info("=" * 60)
         except Exception as e:
-            logger.error(f"Failed to upload documents to Azure Search: {e}")
-            logger.error("Please check your Azure Search configuration and try again.")
+            logger.error(f"Failed to write to ChromaDB: {e}")
     else:
         logger.warning("No documents were processed.")
+
 
 if __name__ == "__main__":
     index_docs()

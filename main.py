@@ -54,6 +54,9 @@ def run_cli_simulation():
     # This dictionary contains all the input data for the workflow
     # Think of it as the "intake form" for the compliance audit
     initial_inputs = {
+        # Tenant ID for RAG filter and multi-tenancy (required by VideoAuditState)
+        "tenant_id": "dev_cli",
+
         # The YouTube video to audit
         "video_url": "https://youtu.be/dT7S75eYhcQ",
         

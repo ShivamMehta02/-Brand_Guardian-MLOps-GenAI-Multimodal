@@ -7,6 +7,19 @@ services:
     envVars:
       - key: DEMO_MODE
         value: "true"
-      # In Render's dashboard, you would override DEMO_MODE to "false" 
-      # and provide your real keys if you want the live version to actually work.
-      # But leaving it "true" guarantees $0 cost for portfolio visitors.
+
+      # --- Groq (free LLM — no CC needed) ---
+      # Get free key: https://console.groq.com → API Keys
+      - key: GROQ_API_KEY
+        sync: false   # Set this as a secret in Render Dashboard
+
+      - key: GROQ_MODEL
+        value: "llama-3.1-8b-instant"
+
+      # --- Local services (baked into Docker image at build time) ---
+      - key: CHROMA_DB_PATH
+        value: "./chroma_db"
+      - key: WHISPER_MODEL
+        value: "base"
+      - key: EMBEDDING_MODEL
+        value: "all-MiniLM-L6-v2"

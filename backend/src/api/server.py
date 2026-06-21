@@ -295,53 +295,28 @@ def health_check():
     # FastAPI automatically converts dict to JSON response
 
 
-# ========== STEP 9: RUN INSTRUCTIONS (IN COMMENTS) ==========
-'''
-To execute: 
-uv run uvicorn backend.src.api.server:app --reload
-
-Command breakdown:
-- uv run          = Run with UV package manager
-- uvicorn         = ASGI server (like Gunicorn but async)
-- backend.src.api.server:app = Python path to FastAPI app object
-- --reload        = Auto-restart server when code changes (dev mode)
-
-Server starts at: http://localhost:8000
-
-Access points:
-- API Docs:    http://localhost:8000/docs (interactive Swagger UI)
-- Health:      http://localhost:8000/health
-- Main API:    POST http://localhost:8000/audit
-'''
-
-'''
-## How the API Works (Request Flow)
-```
-1. Client sends POST request:
-   POST http://localhost:8000/audit
-   Body: {"video_url": "https://youtu.be/abc123"}
-   
-2. FastAPI receives request:
-   - Validates request matches AuditRequest model
-   - Calls audit_video() function
-   
-3. audit_video() executes:
-   - Generates session ID
-   - Prepares initial_inputs dict
-   - Calls compliance_graph.invoke()
-   
-4. LangGraph workflow runs:
-   START → Indexer → Auditor → END
-   
-5. Function returns AuditResponse:
-   - FastAPI validates response matches model
-   - Converts Pydantic object to JSON
-   - Sends HTTP response to client
-   
-6. Azure Monitor captures:
-   - Request duration
-   - HTTP status code
-   - Any errors
-   - Graph execution trace
-
-'''
+# ========== STEP 9: RUN INSTRUCTIONS ==========
+# To run locally:
+#   uv run uvicorn backend.src.api.server:app --reload
+#
+# Command breakdown:
+#   uv run          = Run with UV package manager
+#   uvicorn         = ASGI server (async, like Gunicorn)
+#   backend.src.api.server:app = Python path to FastAPI app object
+#   --reload        = Auto-restart on code changes (dev mode only)
+#
+# Access points:
+#   API Docs:  http://localhost:8000/docs
+#   Health:    http://localhost:8000/health
+#   Main API:  POST http://localhost:8000/audit
+#
+# Request Flow:
+#   1. Browser  →  POST /audit  {"video_url": "https://youtu.be/..."}
+#   2. FastAPI validates AuditRequest model (HttpUrl enforced)
+#   3. SlowAPI checks rate limit (5/min per IP)
+#   4. get_tenant_id() validates X-API-Key header
+#   5. DEMO_MODE=true?  →  instant mock response (no Azure)
+#   6. DEMO_MODE=false? →  compliance_graph.ainvoke() runs LangGraph
+#      START → indexer (yt-dlp + Azure VI) → auditor (RAG + GPT-4o) → END
+#   7. AuditResponse serialized to JSON and returned to client
+#   8. Azure Monitor captures request trace (if connection string set)

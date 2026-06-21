@@ -26,7 +26,7 @@ export default function Audit() {
           if (prev < STEPS.length - 1) return prev + 1;
           return prev;
         });
-      }, 15000); // Advance step every 15 seconds
+      }, 500); // 500ms in demo mode (2s response), 15s cadence for real pipeline (75s+)
     }
     return () => clearInterval(interval);
   }, [isLoading]);
